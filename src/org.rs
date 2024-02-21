@@ -1,38 +1,28 @@
 use super::Builder;
 use anyhow::Result;
-use orgize::export::{DefaultHtmlHandler, HtmlHandler};
+use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler, HtmlHandler};
 use orgize::{Element, Org};
-use std::convert::From;
 use std::io::{Error as IOError, Write};
 use std::path::{Path, PathBuf};
-
-#[derive(Debug)]
-pub struct HandlerError;
-
-impl From<IOError> for HandlerError {
-    fn from(value: IOError) -> Self {
-        todo!()
-    }
-}
 
 /// A wrapper around `DefaultHtmlHandler` in case I need to
 /// customize some stuff
 #[derive(Default)]
-pub struct BorgHandler(DefaultHtmlHandler);
+pub struct PublishHandler{
+    inner: SyntectHtmlHandler<IOError, DefaultHtmlHandler>,
+}
 
-impl HtmlHandler<HandlerError> for BorgHandler {
-    fn start<W: Write>(&mut self, w: W, element: &Element) -> Result<(), HandlerError> {
-        self.0.start(w, element)?;
-        Ok(())
-    }
-
-    fn end<W: Write>(&mut self, w: W, element: &Element) -> Result<(), HandlerError> {
-        self.0.end(w, element)?;
-        Ok(())
+impl PublishHandler {
+    fn from_file<P: AsRef<Path>>(org_file: P) -> Self {
+        todo!()
     }
 }
 
-impl Builder for BorgHandler {}
+impl Builder for PublishHandler {
+    fn build(project: crate::Project) -> Result<()> {
+        project.
+    }
+}
 
 pub struct StaticsHandler {
     source_dir: PathBuf,
@@ -48,6 +38,8 @@ impl StaticsHandler {
     }
 }
 
-impl Builder for StaticsHandler{
-
+impl Builder for StaticsHandler {
+    fn build(project: crate::Project) -> Result<()> {
+        todo!()
+    }
 }

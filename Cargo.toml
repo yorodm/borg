@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.80"
 clap = { version = "4.5.1", features = ["derive"] }
-orgize = "0.9.0"
+orgize = { version = "0.9.0", features = ["syntect"] }
 serde = { version = "1.0.197", features = ["derive"] }
 toml = { version = "0.8.10", features = ["parse"] }

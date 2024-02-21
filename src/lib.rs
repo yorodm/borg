@@ -8,8 +8,14 @@ pub mod org;
 pub enum PublishAction {
     ToHtml,
     Attachment,
+    Rss
 }
 
+impl Default for PublishAction {
+    fn default() -> Self {
+        Self::Attachment // By default we only copy
+    }
+}
 
 /// A site config
 /// Basically a list of `Project` definitions
@@ -27,22 +33,22 @@ impl Config {
 /// A publishing project.
 /// Made this as close as possible to org-publish projects while still
 /// considering my own use case
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Project {
-    base_directory: String,
-    base_extension: String,
+    base_directory: Option<String>,
+    base_extension: Option<String>,
     recursive: bool,
     publishing_directory: String,
     exclude: Vec<String>,
     auto_sitemap: bool,
-    sitemap_filename: String,
+    sitemap_filename: Option<String>,
     sitemap_title: String,
     recent_first: bool,
-    link_home: String,
-    link_up: String,
-    html_head: String,
-    html_preamble: String,
-    html_postamble: String,
+    link_home: Option<String>,
+    link_up: Option<String>,
+    html_head: Option<String>,
+    html_preamble: Option<String>,
+    html_postamble: Option<String>,
     publish_action: PublishAction
 }
 
