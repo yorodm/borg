@@ -1,10 +1,9 @@
 use super::Builder;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use globwalk::{DirEntry, FileType, GlobWalkerBuilder};
 use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
-use orgize::{Element, Org};
+use orgize::Org
 use std::fs::File;
-use std::io::Error as IOError;
 use std::path::{Path, PathBuf};
 
 /// A wrapper around `DefaultHtmlHandler` in case I need to
@@ -21,10 +20,12 @@ impl Builder for PublishHandler {
             let contents = std::fs::read_to_string(f.path())?;
             let mut output_path = self.dest_dir.join(f.file_name());
             output_path.set_extension("html");
-            let output = File::create(output_path)?;
+            let output = File::create(&output_path)
+                .context(format!("Could not create output file {:?}", output_path.as_os_str()))?;
             let mut inner = SyntectHtmlHandler::new(DefaultHtmlHandler);
             Org::parse(&contents)
-                .write_html_custom(output, &mut inner)?
+                .write_html_custom(output, &mut inner)
+                .context(format!("Failed to process {:?}", f.path().as_os_str()))?
         }
         Ok(())
     }
