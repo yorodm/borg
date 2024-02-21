@@ -1,8 +1,10 @@
+use crate::get_source_entries;
+
 use super::Builder;
 use anyhow::{anyhow, Context, Result};
 use globwalk::{DirEntry, FileType, GlobWalkerBuilder};
 use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
-use orgize::Org
+use orgize::Org;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -11,7 +13,7 @@ use std::path::{Path, PathBuf};
 #[derive(Default)]
 pub struct PublishHandler {
     file_list: Vec<DirEntry>,
-    dest_dir: PathBuf
+    dest_dir: PathBuf,
 }
 
 impl Builder for PublishHandler {
@@ -20,8 +22,10 @@ impl Builder for PublishHandler {
             let contents = std::fs::read_to_string(f.path())?;
             let mut output_path = self.dest_dir.join(f.file_name());
             output_path.set_extension("html");
-            let output = File::create(&output_path)
-                .context(format!("Could not create output file {:?}", output_path.as_os_str()))?;
+            let output = File::create(&output_path).context(format!(
+                "Could not create output file {:?}",
+                output_path.as_os_str()
+            ))?;
             let mut inner = SyntectHtmlHandler::new(DefaultHtmlHandler);
             Org::parse(&contents)
                 .write_html_custom(output, &mut inner)
@@ -31,24 +35,8 @@ impl Builder for PublishHandler {
     }
 
     fn from_project(project: crate::Project) -> Result<Self> {
-        if let Some(path) = project.base_directory {
-            if Path::new(&path).is_dir() {
-                let entries: Vec<DirEntry> = GlobWalkerBuilder::from_patterns(
-                    path,
-                    &vec![&project.base_extension.unwrap_or_else(|| "*".into())],
-                )
-                .follow_links(true)
-                .max_depth(project.recursive)
-                .file_type(FileType::FILE)
-                .build()?
-                .into_iter()
-                .filter_map(Result::ok)
-                    .collect();
-                return Ok(PublishHandler {
-                    file_list: entries,
-                    dest_dir: PathBuf::from(project.publishing_directory)
-                });
-            }
+        if let Some(ref path) = project.base_directory {
+            get_source_entries(path, &project)?;
         }
         Err(anyhow!(
             "Base directory does not exists or hasn't been defined"

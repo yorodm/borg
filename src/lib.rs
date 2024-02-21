@@ -1,6 +1,7 @@
 use std::path::Path;
+use globwalk::{GlobWalkerBuilder, DirEntry, FileType};
 use serde::{Deserialize, Serialize};
-use anyhow::Result;
+use anyhow::{Result, Context};
 
 pub mod org;
 pub mod attachment;
@@ -59,4 +60,21 @@ pub struct Project {
 pub trait Builder: Sized {
     fn from_project(project: Project) -> Result<Self>;
     fn build(&self) -> Result<()>;
+}
+
+/// Get all the entries in a directory, applying filters defined in the project
+pub (crate) fn get_source_entries(path: &String, project: &Project) -> Result<Vec<DirEntry>, anyhow::Error> {
+    let entries: Vec<DirEntry> = GlobWalkerBuilder::from_patterns(
+            path,
+            &vec![project.base_extension.unwrap_or_else(|| "*".into())],
+        )
+        .follow_links(true)
+        .max_depth(project.recursive)
+        .file_type(FileType::FILE)
+        .build()
+        .context(format!("Failed to process directory {}", &path))?
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect();
+    return Ok(entries);
 }

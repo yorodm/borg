@@ -1,15 +1,14 @@
-use std::path::PathBuf;
 use anyhow::Result;
+use std::path::PathBuf;
 
 use crate::Builder;
 
-pub struct StaticsHandler {
+pub struct AttachmentsHandler {
     source_dir: PathBuf,
     dest_dir: PathBuf,
 }
 
-
-impl Builder for StaticsHandler {
+impl Builder for AttachmentsHandler {
     fn build(&self) -> Result<()> {
         todo!()
     }
