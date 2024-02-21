@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use anyhow::Result;
 
 pub mod org;
+pub mod attachment;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PublishAction {
@@ -37,7 +38,7 @@ impl Config {
 pub struct Project {
     base_directory: Option<String>,
     base_extension: Option<String>,
-    recursive: bool,
+    recursive: usize,
     publishing_directory: String,
     exclude: Vec<String>,
     auto_sitemap: bool,
@@ -55,6 +56,7 @@ pub struct Project {
 
 /// A builder knows how to process a project
 /// We have one builder for each PublishAction
-pub trait Builder{
-    fn build(project: Project) -> Result<()>;
+pub trait Builder: Sized {
+    fn from_project(project: Project) -> Result<Self>;
+    fn build(&self) -> Result<()>;
 }
