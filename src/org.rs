@@ -2,11 +2,11 @@ use crate::get_source_entries;
 
 use super::Builder;
 use anyhow::{anyhow, Context, Result};
-use globwalk::{DirEntry, FileType, GlobWalkerBuilder};
 use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
 use orgize::Org;
+use walkdir::DirEntry;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// A wrapper around `DefaultHtmlHandler` in case I need to
 /// customize some stuff
@@ -36,7 +36,8 @@ impl Builder for PublishHandler {
 
     fn from_project(project: crate::Project) -> Result<Self> {
         if let Some(ref path) = project.base_directory {
-            get_source_entries(path, &project)?;
+            let include = vec![project.base_extension.unwrap_or("*".to_owned())];
+            get_source_entries(path,&include,&project.exclude,project.recursive)?;
         }
         Err(anyhow!(
             "Base directory does not exists or hasn't been defined"
