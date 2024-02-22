@@ -58,7 +58,7 @@ pub struct Project {
 /// A builder knows how to process a project
 /// We have one builder for each PublishAction
 pub trait Builder: Sized {
-    fn from_project(project: Project) -> Result<Self>;
+    fn from_project(project: &Project) -> Result<Self>;
     fn build(&self) -> Result<()>;
 }
 
