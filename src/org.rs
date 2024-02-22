@@ -1,4 +1,4 @@
-use crate::get_source_entries;
+use crate::{get_source_entries, DirSettings};
 
 use super::Builder;
 use anyhow::{anyhow, Context, Result};
@@ -35,16 +35,7 @@ impl Builder for PublishHandler {
     }
 
     fn from_project(project: &crate::Project) -> Result<Self> {
-        if let Some(ref path) = project.base_directory {
-            let include  = match project.base_directory {
-                Some(ref path) => vec![path],
-                None => vec!["*"],
-            };
-            let exclude : Vec<&String> = project.exclude.iter().map(|s| s).collect();
-            get_source_entries(path,&include,&exclude,project.recursive)?;
-        }
-        Err(anyhow!(
-            "Base directory does not exists or hasn't been defined"
-        ))
+        let dir_settings = DirSettings::try_from(project);
+        todo!()
     }
 }

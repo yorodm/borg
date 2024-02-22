@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Result, Context};
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use serde::{Deserialize, Serialize};
-use std::path::Path;
+use serde::{de::IntoDeserializer, Deserialize, Serialize};
+use std::{path::{Path, PathBuf}, str::FromStr};
 use walkdir::{DirEntry, WalkDir};
 
 pub mod attachment;
@@ -40,7 +40,7 @@ impl Config {
 pub struct Project {
     base_directory: Option<String>,
     base_extension: Option<String>,
-    recursive: usize,
+    recursive: bool,
     publishing_directory: String,
     exclude: Vec<String>,
     auto_sitemap: bool,
@@ -81,12 +81,48 @@ fn is_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
+#[derive(Debug)]
+pub(crate) struct DirSettings {
+    files: Vec<DirEntry>,
+    source_dir: PathBuf, // We need this for stripping
+    publish_dir: PathBuf,
+}
+
+impl DirSettings {
+    pub(crate) fn try_from_roject(project: &crate::Project) -> Result<DirSettings> {
+        if let Some(ref path) = project.base_directory {
+            let include = match project.base_directory {
+                Some(ref path) => vec![path.as_str()],
+                None => vec!["*"],
+            };
+            let exclude: Vec<&str> = project.exclude.iter().map(|s| s.as_str()).collect();
+            let entries = get_source_entries(path, &include, &exclude, project.recursive)?;
+            return Ok(DirSettings {
+                files: entries,
+                publish_dir: PathBuf::from_str(&project.publishing_directory)?,
+                source_dir: PathBuf::from_str(path.as_str())?,
+            });
+        }
+        Err(anyhow!(
+            "Base directory does not exists or hasn't been defined"
+        ))
+    }
+}
+
+impl TryFrom<&Project> for DirSettings {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Project) -> std::result::Result<Self, Self::Error> {
+        DirSettings::try_from_roject(value)
+    }
+}
+
 /// Get all the entries in a directory, applying filters defined in the project
 pub(crate) fn get_source_entries<P, S>(
     path: P,
     include_filter: &[S],
     exclude_filter: &[S], // unused by now
-    recursion_level: usize,
+    recursive: bool,
 ) -> Result<Vec<DirEntry>, anyhow::Error>
 where
     P: AsRef<Path>,
@@ -98,7 +134,9 @@ where
     let exclude_entry = |path: &DirEntry| !exclude_patterns.is_match(path.path());
     let walker = WalkDir::new(path)
         .into_iter()
-        .filter_entry(|p| !is_hidden(p) && include_entry(p) && !exclude_entry(p));
-    let entries = walker.filter_map(Result::ok).collect();
-    return Ok(entries);
+        .filter_entry(|p| {
+            !is_hidden(p) && include_entry(p) && !exclude_entry(p) && (p.file_type().is_dir() == recursive)
+        });
+    let entries: Result<_,_> = walker.into_iter().into_iter().collect();
+    return Ok(entries.context("Failed to read items from base directory")?)
 }
