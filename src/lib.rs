@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result, Context};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::{de::IntoDeserializer, Deserialize, Serialize};
-use std::{path::{Path, PathBuf}, str::FromStr};
+use std::{path::{Path, PathBuf}, str::FromStr, fs::File, io::Read};
 use walkdir::{DirEntry, WalkDir};
 
 pub mod attachment;
@@ -9,8 +9,11 @@ pub mod org;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PublishAction {
+    #[serde(rename="to-html")]
     ToHtml,
+    #[serde(rename="attachment")]
     Attachment,
+    #[serde(rename="rss")]
     Rss,
 }
 
@@ -28,8 +31,15 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-        todo!()
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut data = String::new();
+        let mut file = File::open(&path)
+            .context(format!("Failed to open config file {}", path.as_ref().to_string_lossy()))?;
+        file.read_to_string(&mut data)
+            .context("Failed to read configuration")?;
+        let cfg :Config = toml::from_str(&data)
+            .context("Malformed configuration")?;
+        Ok(cfg)
     }
 }
 
