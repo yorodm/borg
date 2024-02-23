@@ -1,7 +1,7 @@
-use crate::{get_source_entries, DirSettings};
+use crate::{DirSettings};
 
 use super::Builder;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
 use orgize::Org;
 use walkdir::DirEntry;
@@ -35,7 +35,7 @@ impl Builder for PublishHandler {
     }
 
     fn from_project(project: &crate::Project) -> Result<Self> {
-        let dir_settings = DirSettings::try_from(project);
+        let _dir_settings = DirSettings::try_from(project);
         todo!()
     }
 }

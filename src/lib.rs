@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result, Context};
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use serde::{de::IntoDeserializer, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{path::{Path, PathBuf}, str::FromStr, fs::File, io::Read};
 use walkdir::{DirEntry, WalkDir};
 
