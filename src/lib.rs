@@ -48,27 +48,28 @@ impl Config {
 /// considering my own use case
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Project {
-    base_directory: Option<String>,
-    base_extension: Option<String>,
-    recursive: bool,
-    publishing_directory: String,
-    exclude: Vec<String>,
-    auto_sitemap: bool,
-    sitemap_filename: Option<String>,
-    sitemap_title: String,
-    recent_first: bool,
-    link_home: Option<String>,
-    link_up: Option<String>,
-    html_head: Option<String>,
-    html_preamble: Option<String>,
-    html_postamble: Option<String>,
-    publish_action: PublishAction,
+    pub name: String,
+    pub base_directory: Option<String>,
+    pub base_extension: Option<String>,
+    pub recursive: bool,
+    pub publishing_directory: String,
+    pub exclude: Vec<String>,
+    pub auto_sitemap: bool,
+    pub sitemap_filename: Option<String>,
+    pub sitemap_title: String,
+    pub recent_first: bool,
+    pub link_home: Option<String>,
+    pub link_up: Option<String>,
+    pub html_head: Option<String>,
+    pub html_preamble: Option<String>,
+    pub html_postamble: Option<String>,
+    pub publish_action: PublishAction,
 }
 
 /// A builder knows how to process a project
 /// We have one builder for each PublishAction
-pub trait Builder: Sized {
-    fn from_project(project: &Project) -> Result<Self>;
+pub trait Builder<T>  {
+    fn from_project(project: &Project) -> Result<T>;
     fn build(&self) -> Result<()>;
 }
 
@@ -91,7 +92,7 @@ fn is_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct DirSettings {
     files: Vec<DirEntry>,
     source_dir: PathBuf, // We need this for stripping
@@ -99,7 +100,7 @@ pub(crate) struct DirSettings {
 }
 
 impl DirSettings {
-    pub(crate) fn try_from_roject(project: &crate::Project) -> Result<DirSettings> {
+    pub(crate) fn try_from_project(project: &crate::Project) -> Result<DirSettings> {
         if let Some(ref path) = project.base_directory {
             let include = match project.base_directory {
                 Some(ref path) => vec![path.as_str()],
@@ -123,7 +124,7 @@ impl TryFrom<&Project> for DirSettings {
     type Error = anyhow::Error;
 
     fn try_from(value: &Project) -> std::result::Result<Self, Self::Error> {
-        DirSettings::try_from_roject(value)
+        DirSettings::try_from_project(value)
     }
 }
 

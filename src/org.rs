@@ -1,26 +1,23 @@
-use crate::{DirSettings};
+use crate::DirSettings;
 
 use super::Builder;
 use anyhow::{Context, Result};
 use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
 use orgize::Org;
-use walkdir::DirEntry;
 use std::fs::File;
-use std::path::PathBuf;
 
 /// A wrapper around `DefaultHtmlHandler` in case I need to
 /// customize some stuff
 #[derive(Default)]
 pub struct PublishHandler {
-    file_list: Vec<DirEntry>,
-    dest_dir: PathBuf,
+    dir_settings: DirSettings,
 }
 
-impl Builder for PublishHandler {
+impl Builder<PublishHandler> for PublishHandler {
     fn build(&self) -> Result<()> {
-        for f in &self.file_list {
+        for f in &self.dir_settings.files {
             let contents = std::fs::read_to_string(f.path())?;
-            let mut output_path = self.dest_dir.join(f.file_name());
+            let mut output_path = self.dir_settings.publish_dir.join(f.file_name());
             output_path.set_extension("html");
             let output = File::create(&output_path).context(format!(
                 "Could not create output file {:?}",
@@ -35,7 +32,8 @@ impl Builder for PublishHandler {
     }
 
     fn from_project(project: &crate::Project) -> Result<Self> {
-        let _dir_settings = DirSettings::try_from(project);
-        todo!()
+        Ok(PublishHandler {
+            dir_settings: DirSettings::try_from(project)?,
+        })
     }
 }

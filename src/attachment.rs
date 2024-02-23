@@ -26,7 +26,7 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
     Ok(())
 }
 
-impl Builder for AttachmentsHandler {
+impl Builder<AttachmentsHandler> for AttachmentsHandler {
     fn build(&self) -> Result<()> {
         for entry in self.dir_settings.files.iter() {
             let dest = entry.path().strip_prefix(&self.dir_settings.source_dir)?;
