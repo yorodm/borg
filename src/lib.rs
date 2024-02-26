@@ -27,7 +27,7 @@ impl Default for PublishAction {
 /// Basically a list of `Project` definitions
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    projects: Vec<Project>,
+    pub projects: Vec<Project>,
 }
 
 impl Config {
@@ -127,6 +127,7 @@ impl TryFrom<&Project> for DirSettings {
         DirSettings::try_from_project(value)
     }
 }
+
 
 /// Get all the entries in a directory, applying filters defined in the project
 pub(crate) fn get_source_entries<P, S>(
