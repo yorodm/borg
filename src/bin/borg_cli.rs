@@ -15,7 +15,7 @@ fn run_project_builder(project: &Project) -> Result<()> {
                     project.name
                 ))?
                 .build()
-                .context("Failed publishing html project")
+
         }
         borg::PublishAction::Attachment => {
             AttachmentsHandler::from_project(&project)

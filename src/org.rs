@@ -15,7 +15,8 @@ pub struct PublishHandler {
 impl Builder<PublishHandler> for PublishHandler {
     fn build(&self) -> Result<()> {
         for f in self.dir_settings.files.iter() {
-            self.export_html(f)?;
+            self.export_html(f)
+                .context(format!("Error exporting file {}", f.path().display()))?;
         }
         Ok(())
     }
@@ -40,6 +41,6 @@ impl PublishHandler {
         let mut inner = SyntectHtmlHandler::new(DefaultHtmlHandler);
         Ok(Org::parse(&contents)
             .write_html_custom(output, &mut inner)
-            .context(format!("Failed to process {:?}", f.path().as_os_str()))?)
+            .context(format!("Failed to process {:?}", f.path().display()))?)
     }
 }

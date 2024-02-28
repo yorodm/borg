@@ -42,7 +42,7 @@ impl Config {
         let mut data = String::new();
         let mut file = File::open(&path).context(format!(
             "Failed to open config file {}",
-            path.as_ref().to_string_lossy()
+            path.as_ref().display()
         ))?;
         file.read_to_string(&mut data)
             .context("Failed to read configuration")?;
@@ -174,7 +174,7 @@ where
         .collect::<Result<Vec<DirEntry>, _>>()
         .context(format!(
             "Error reading {} directory content",
-            &path.as_ref().to_string_lossy()
+            &path.as_ref().display()
         ))?
         .into_iter()
         //The walker will return the directories as entries

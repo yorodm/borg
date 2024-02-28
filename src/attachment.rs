@@ -21,8 +21,8 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
     };
     copy(&source, output_dir.as_ref().join(dest.as_ref())).context(format!(
         "Error copying {} to {}",
-        source.as_ref().to_string_lossy(),
-        output_dir.as_ref().to_string_lossy()
+        source.as_ref().display(),
+        output_dir.as_ref().display()
     ))?;
     Ok(())
 }
