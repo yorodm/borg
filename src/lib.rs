@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
+    fmt::{Debug, Display},
     fs::File,
     io::Read,
     path::{Path, PathBuf},
@@ -88,10 +89,12 @@ pub trait Builder<T> {
 // Helper to build globsets out of patterns
 fn build_glob<S: AsRef<str>>(patterns: &[S]) -> Result<GlobSet> {
     let mut builder = GlobSetBuilder::new();
-    for p in patterns.iter() {
-        builder.add(Glob::new(p.as_ref())?);
+    for p in patterns.iter().map(|s| s.as_ref().trim()) {
+        builder.add(Glob::new(p.as_ref()).context("Pattern is not valid")?);
     }
-    let set = builder.build()?;
+    let set = builder
+        .build()
+        .context("Failed to create a pattern set matcher")?;
     Ok(set)
 }
 
@@ -124,7 +127,6 @@ impl DirSettings {
             &exclude,
             project.recursive,
         )?;
-        dbg!("Etries are {:?}", &entries);
         return Ok(DirSettings {
             files: entries,
             publish_dir: PathBuf::from_str(&project.publishing_directory)?,
@@ -152,22 +154,32 @@ pub(crate) fn get_source_entries<P, S>(
 ) -> Result<Vec<DirEntry>, anyhow::Error>
 where
     P: AsRef<Path>,
-    S: AsRef<str>,
+    S: AsRef<str> + Debug,
 {
     let include_patterns = build_glob(include_filter)?;
-    let include_entry = |path: &DirEntry| include_patterns.is_match(path.path());
+    let include_entry = |path: &DirEntry| {
+        // don't reject child directories
+        path.file_type().is_dir() || include_patterns.is_match(path.path())
+    };
     let exclude_patterns = build_glob(exclude_filter)?;
     let exclude_entry = |path: &DirEntry| !exclude_patterns.is_match(path.path());
     let recursion_level = if recursive { MAX_RECURSION } else { 1 };
     let walker = WalkDir::new(&path)
         .max_depth(recursion_level)
         .into_iter()
-        .filter_entry(|p| !is_hidden(p) && include_entry(p) && exclude_entry(p));
+        .filter_entry(|p| !is_hidden(p) && exclude_entry(p) && include_entry(p));
     let entries = walker
         .into_iter()
         .collect::<Vec<_>>()
         .into_iter()
         .collect::<Result<Vec<DirEntry>, _>>()
-        .context(format!("Error reading {} directory content", &path.as_ref().to_string_lossy()))?;
+        .context(format!(
+            "Error reading {} directory content",
+            &path.as_ref().to_string_lossy()
+        ))?
+        .into_iter()
+        //The walker will return the directories as entries
+        .filter(|p| p.file_type().is_file())
+        .collect();
     return Ok(entries);
 }

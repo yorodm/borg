@@ -29,7 +29,6 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
 
 impl Builder<AttachmentsHandler> for AttachmentsHandler {
     fn build(&self) -> Result<()> {
-        dbg!("Running publish_html", self);
         for entry in self.dir_settings.files.iter() {
             let dest = entry.path().strip_prefix(&self.dir_settings.source_dir)?;
             copy_creating_dirs(entry.path(), &self.dir_settings.publish_dir, dest)?;

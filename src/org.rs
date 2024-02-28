@@ -14,7 +14,6 @@ pub struct PublishHandler {
 
 impl Builder<PublishHandler> for PublishHandler {
     fn build(&self) -> Result<()> {
-         dbg!("Running publish_html", self);
         for f in self.dir_settings.files.iter() {
             self.export_html(f)?;
         }
