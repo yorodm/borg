@@ -1,19 +1,25 @@
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
-use std::{path::{Path, PathBuf}, str::FromStr, fs::File, io::Read};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 use walkdir::{DirEntry, WalkDir};
 
 pub mod attachment;
 pub mod org;
+const MAX_RECURSION: usize = 100;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PublishAction {
-    #[serde(rename="to-html")]
+    #[serde(rename = "to-html")]
     ToHtml,
-    #[serde(rename="attachment")]
+    #[serde(rename = "attachment")]
     Attachment,
-    #[serde(rename="rss")]
+    #[serde(rename = "rss")]
     Rss,
 }
 
@@ -33,12 +39,13 @@ pub struct Config {
 impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut data = String::new();
-        let mut file = File::open(&path)
-            .context(format!("Failed to open config file {}", path.as_ref().to_string_lossy()))?;
+        let mut file = File::open(&path).context(format!(
+            "Failed to open config file {}",
+            path.as_ref().to_string_lossy()
+        ))?;
         file.read_to_string(&mut data)
             .context("Failed to read configuration")?;
-        let cfg :Config = toml::from_str(&data)
-            .context("Malformed configuration")?;
+        let cfg: Config = toml::from_str(&data).context("Malformed configuration")?;
         Ok(cfg)
     }
 }
@@ -49,26 +56,31 @@ impl Config {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Project {
     pub name: String,
-    pub base_directory: Option<String>,
+    pub base_directory: String,
     pub base_extension: Option<String>,
+    #[serde(default)]
     pub recursive: bool,
     pub publishing_directory: String,
+    #[serde(default)]
     pub exclude: Vec<String>,
+    #[serde(default)]
     pub auto_sitemap: bool,
     pub sitemap_filename: Option<String>,
-    pub sitemap_title: String,
+    pub sitemap_title: Option<String>,
+    #[serde(default)]
     pub recent_first: bool,
     pub link_home: Option<String>,
     pub link_up: Option<String>,
     pub html_head: Option<String>,
     pub html_preamble: Option<String>,
     pub html_postamble: Option<String>,
+    #[serde(default)]
     pub publish_action: PublishAction,
 }
 
 /// A builder knows how to process a project
 /// We have one builder for each PublishAction
-pub trait Builder<T>  {
+pub trait Builder<T> {
     fn from_project(project: &Project) -> Result<T>;
     fn build(&self) -> Result<()>;
 }
@@ -101,22 +113,25 @@ pub(crate) struct DirSettings {
 
 impl DirSettings {
     pub(crate) fn try_from_project(project: &crate::Project) -> Result<DirSettings> {
-        if let Some(ref path) = project.base_directory {
-            let include = match project.base_directory {
-                Some(ref path) => vec![path.as_str()],
-                None => vec!["*"],
-            };
-            let exclude: Vec<&str> = project.exclude.iter().map(|s| s.as_str()).collect();
-            let entries = get_source_entries(path, &include, &exclude, project.recursive)?;
-            return Ok(DirSettings {
-                files: entries,
-                publish_dir: PathBuf::from_str(&project.publishing_directory)?,
-                source_dir: PathBuf::from_str(path.as_str())?,
-            });
-        }
-        Err(anyhow!(
-            "Base directory does not exists or hasn't been defined"
-        ))
+        let include = match project.base_extension {
+            Some(ref ext) => vec![ext.as_str()],
+            None => vec!["*"],
+        };
+        let exclude: Vec<&str> = project.exclude.iter().map(|s| s.as_str()).collect();
+        let entries = get_source_entries(
+            &project.base_directory,
+            &include,
+            &exclude,
+            project.recursive,
+        )?;
+        dbg!("Etries are {:?}", &entries);
+        return Ok(DirSettings {
+            files: entries,
+            publish_dir: PathBuf::from_str(&project.publishing_directory)?,
+            source_dir: PathBuf::from_str(&project.base_directory)?
+                .canonicalize()
+                .context("Source directory doesn't exist or is it invalid")?,
+        });
     }
 }
 
@@ -127,7 +142,6 @@ impl TryFrom<&Project> for DirSettings {
         DirSettings::try_from_project(value)
     }
 }
-
 
 /// Get all the entries in a directory, applying filters defined in the project
 pub(crate) fn get_source_entries<P, S>(
@@ -144,11 +158,16 @@ where
     let include_entry = |path: &DirEntry| include_patterns.is_match(path.path());
     let exclude_patterns = build_glob(exclude_filter)?;
     let exclude_entry = |path: &DirEntry| !exclude_patterns.is_match(path.path());
-    let walker = WalkDir::new(path)
+    let recursion_level = if recursive { MAX_RECURSION } else { 1 };
+    let walker = WalkDir::new(&path)
+        .max_depth(recursion_level)
         .into_iter()
-        .filter_entry(|p| {
-            !is_hidden(p) && include_entry(p) && !exclude_entry(p) && (p.file_type().is_dir() == recursive)
-        });
-    let entries: Result<_,_> = walker.into_iter().into_iter().collect();
-    return Ok(entries.context("Failed to read items from base directory")?)
+        .filter_entry(|p| !is_hidden(p) && include_entry(p) && exclude_entry(p));
+    let entries = walker
+        .into_iter()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect::<Result<Vec<DirEntry>, _>>()
+        .context(format!("Error reading {} directory content", &path.as_ref().to_string_lossy()))?;
+    return Ok(entries);
 }

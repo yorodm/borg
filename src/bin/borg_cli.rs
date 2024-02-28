@@ -9,6 +9,7 @@ use std::env;
 fn run_project_builder(project: &Project) -> Result<()> {
     match project.publish_action {
         borg::PublishAction::ToHtml => {
+            dbg!("Running the publish handler");
             PublishHandler::from_project(&project)
                 .context(format!(
                     "Cannot create html publisher from {}",
@@ -18,6 +19,7 @@ fn run_project_builder(project: &Project) -> Result<()> {
                 .context("Failed publishing html project")
         }
         borg::PublishAction::Attachment => {
+            dbg!("Running the attachment handler");
             AttachmentsHandler::from_project(&project)
                 .context(format!(
                     "Cannot create attachment handler from {}",
@@ -31,18 +33,19 @@ fn run_project_builder(project: &Project) -> Result<()> {
 }
 
 fn action(ctx: &AppContext) -> ActionResult{
-    match Config::from_file(&ctx.args[1]) {
+    match Config::from_file(&ctx.args.get(0).unwrap()) {
         Ok(config) => {
+            dbg!("Running the command action");
             let result : Result<()> = config.projects.iter()
                 .map(|p| run_project_builder(p))
                 .collect();
-            result.map_err(|_| -> ActionError {
+            result.map_err(|e| -> ActionError {
                 ActionError{
-                    message: "Error running publish".to_owned()
+                    message: format!("Error running publish {}", e)
                 }})
         },
-        Err(_) => Err(ActionError {
-            message: "Error reading configuration".to_owned()
+        Err(e) => Err(ActionError {
+            message: format!("Error reading configuration {:?}",e)
         }),
     }
 }

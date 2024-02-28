@@ -7,13 +7,14 @@ use orgize::Org;
 use std::fs::File;
 
 /// Handler for the `ToHtml` action
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PublishHandler {
     dir_settings: DirSettings,
 }
 
 impl Builder<PublishHandler> for PublishHandler {
     fn build(&self) -> Result<()> {
+         dbg!("Running publish_html", self);
         for f in self.dir_settings.files.iter() {
             self.export_html(f)?;
         }

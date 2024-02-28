@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 
 use crate::{Builder, DirSettings};
 
+#[derive(Debug)]
 pub struct AttachmentsHandler {
     dir_settings: DirSettings,
 }
@@ -28,6 +29,7 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
 
 impl Builder<AttachmentsHandler> for AttachmentsHandler {
     fn build(&self) -> Result<()> {
+        dbg!("Running publish_html", self);
         for entry in self.dir_settings.files.iter() {
             let dest = entry.path().strip_prefix(&self.dir_settings.source_dir)?;
             copy_creating_dirs(entry.path(), &self.dir_settings.publish_dir, dest)?;
