@@ -169,7 +169,6 @@ where
         .into_iter()
         .filter_entry(|p| !is_hidden(p) && exclude_entry(p) && include_entry(p));
     let entries = walker
-        .into_iter()
         .collect::<Vec<_>>()
         .into_iter()
         .collect::<Result<Vec<DirEntry>, _>>()
