@@ -44,7 +44,20 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
 impl Builder<AttachmentsHandler> for AttachmentsHandler {
     fn build(&self) -> Result<()> {
         for entry in self.dir_settings.files.iter() {
-            let dest = entry.path().strip_prefix(&self.dir_settings.source_dir)?;
+            let canonical_entry = entry.path().canonicalize().map_err(|e| {
+                error!(
+                    "Error {}: File {} seems to be gone!",
+                    e,
+                    entry.path().display()
+                );
+                e
+            })?;
+            let dest = &canonical_entry
+                .strip_prefix(&self.dir_settings.source_dir)
+                .map_err(|e| {
+                    error!("{}", e);
+                    e
+                })?;
             copy_creating_dirs(entry.path(), &self.dir_settings.publish_dir, dest)?;
         }
         Ok(())
@@ -52,7 +65,7 @@ impl Builder<AttachmentsHandler> for AttachmentsHandler {
 
     fn from_project<P: AsRef<Path>>(project: &crate::Project, root: P) -> Result<Self> {
         Ok(AttachmentsHandler {
-            dir_settings: DirSettings::new_from_project(project, root)?
+            dir_settings: DirSettings::new_from_project(project, root)?,
         })
     }
 }

@@ -2,7 +2,7 @@ use crate::{DirSettings, ensure_directory};
 
 use super::Builder;
 use anyhow::{Context, Result};
-use log::{error, debug, info};
+use log::{error, info};
 use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
 use orgize::Org;
 use std::fs::File;
@@ -13,6 +13,7 @@ use std::path::Path;
 pub struct PublishHandler {
     dir_settings: DirSettings,
 }
+
 
 impl Builder<PublishHandler> for PublishHandler {
     fn build(&self) -> Result<()> {

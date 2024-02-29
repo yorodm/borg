@@ -1,64 +1,65 @@
 use anyhow::{Context, Result};
 use borg::attachment::AttachmentsHandler;
 use borg::org::PublishHandler;
-use borg::{Builder, Project, Config};
+use borg::{Builder, Config, Project};
 use log::{error, info};
-use seahorse::{App, Context as AppContext, ActionResult, Command, ActionError};
+use seahorse::{ActionError, ActionResult, App, Command, Context as AppContext};
 use std::env;
 use std::path::Path;
 use std::process::exit;
 
-
 fn run_project_builder(project: &Project, root: &Path) -> Result<()> {
     info!("Processing project {}", project.name);
     match project.publish_action {
-        borg::PublishAction::ToHtml => {
-            PublishHandler::from_project(&project, root)
-                .context(format!(
-                    "Cannot create html publisher from {}",
-                    project.name
-                ))?
-                .build()
-
-        }
-        borg::PublishAction::Attachment => {
-            AttachmentsHandler::from_project(&project, root)
-                .context(format!(
-                    "Cannot create attachment handler from {}",
-                    project.name
-                ))?
-                .build()
-                .context("Failed publishing attachments project")
-        }
+        borg::PublishAction::ToHtml => PublishHandler::from_project(&project, root)
+            .context(format!(
+                "Cannot create html publisher from {}",
+                project.name
+            ))?
+            .build(),
+        borg::PublishAction::Attachment => AttachmentsHandler::from_project(&project, root)
+            .context(format!(
+                "Cannot create attachment handler from {}",
+                project.name
+            ))?
+            .build()
+            .map_err(|e| {
+                error!("{}", e);
+                e
+            })
+            .context("Failed publishing attachments project"),
         borg::PublishAction::Rss => todo!(),
     }
 }
 
-fn action(ctx: &AppContext) -> ActionResult{
-    let Some(config_file)  = ctx.args.get(0) else {
+fn action(ctx: &AppContext) -> ActionResult {
+    let Some(config_file) = ctx.args.get(0) else {
         error!("No config file provided");
         exit(1);
     };
-    let config_file_path = Path::new(&config_file)
-        .canonicalize()
-        .map_err(|e| {
-            error!("{}", e);
-            ActionError { message: e.to_string()}
-        })?;
+    let config_file_path = Path::new(&config_file).canonicalize().map_err(|e| {
+        error!("{}", e);
+        ActionError {
+            message: e.to_string(),
+        }
+    })?;
     // if we made it here we exist and we have a parent
     let root = config_file_path.parent().unwrap();
     match Config::from_file(&config_file_path) {
         Ok(config) => {
-            let result : Result<()> = config.projects.iter()
+            let result: Result<()> = config
+                .projects
+                .iter()
                 .map(|p| run_project_builder(p, &root))
                 .collect();
             result.map_err(|e| -> ActionError {
-                ActionError{
-                    message: format!("Error running publish {}", e)
-                }})
-        },
+                ActionError {
+                    message: format!("Error running publish {}", e),
+                }
+            })
+        }
         Err(e) => Err(ActionError {
-            message: format!("Error reading configuration {}",e)
+            message: format!("Error reading configuration {}", e),
         }),
     }
 }

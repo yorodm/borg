@@ -2,17 +2,18 @@ use anyhow::{Context, Result, bail};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt::{Debug, Display},
     fs::File,
     io::Read,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 use walkdir::{DirEntry, WalkDir};
 use relative_path::RelativePath;
+use log::{error, debug};
+
 pub mod attachment;
 pub mod org;
-use log::{error, debug};
+pub mod sitemap;
+
 const MAX_RECURSION: usize = 100;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -144,11 +145,11 @@ impl DirSettings {
             publish_dir: make_absolute_path(&project.publishing_directory, &root)?,
             source_dir: make_absolute_path(&project.base_directory, &root)?
                 .canonicalize()
-                .context("Source directory doesn't exist or is it invalid")
                 .map_err(|e| {
                     error!("{}", e);
                     e
-                })?,
+                })
+                .context("Source directory doesn't exist or is it invalid")?,
         });
     }
 }
@@ -162,7 +163,8 @@ pub (crate) fn ensure_directory<P: AsRef<Path>>(path: P) -> Result<PathBuf>{
                 .map_err(|e| {
                     error!("Directory {} does not exist and cannot be created {}", path.as_ref().display(), e);
                     std::io::Error::last_os_error()
-                })?;
+                })
+                .context("Failed creating directory tree")?;
             Ok(path.as_ref().to_owned())
         },
     }
@@ -192,7 +194,7 @@ pub(crate) fn get_source_entries<P, S>(
 ) -> Result<Vec<DirEntry>, anyhow::Error>
 where
     P: AsRef<Path>,
-    S: AsRef<str> + Debug,
+    S: AsRef<str>,
 {
     let include_patterns = build_glob(include_filter)?;
     let include_entry = |path: &DirEntry| {
