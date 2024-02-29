@@ -3,6 +3,8 @@ use std::{
     path::Path,
 };
 
+use log::error;
+
 use anyhow::{Context, Result};
 
 use crate::{Builder, DirSettings};
@@ -16,14 +18,26 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
     if let Some(path) = dest.as_ref().parent() {
         let new_dir = output_dir.as_ref().join(path);
         if !new_dir.exists() {
-            create_dir_all(new_dir)?
+            create_dir_all(new_dir).map_err(|e| {
+                error!("{}", e);
+                e
+            })?
         }
     };
-    copy(&source, output_dir.as_ref().join(dest.as_ref())).context(format!(
-        "Error copying {} to {}",
-        source.as_ref().display(),
-        output_dir.as_ref().display()
-    ))?;
+    copy(&source, output_dir.as_ref().join(dest.as_ref()))
+        .map_err(|e| {
+            error!("{}", e);
+            e
+        })
+        .context(format!(
+            "Error copying {} to {}",
+            source.as_ref().display(),
+            output_dir.as_ref().display()
+        ))
+        .map_err(|e| {
+            error!("{}", e);
+            e
+        })?;
     Ok(())
 }
 
@@ -36,9 +50,9 @@ impl Builder<AttachmentsHandler> for AttachmentsHandler {
         Ok(())
     }
 
-    fn from_project(project: &crate::Project) -> Result<Self> {
+    fn from_project<P: AsRef<Path>>(project: &crate::Project, root: P) -> Result<Self> {
         Ok(AttachmentsHandler {
-            dir_settings: DirSettings::try_from(project)?,
+            dir_settings: DirSettings::new_from_project(project, root)?
         })
     }
 }

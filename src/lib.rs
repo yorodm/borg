@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, bail};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -9,9 +9,10 @@ use std::{
     str::FromStr,
 };
 use walkdir::{DirEntry, WalkDir};
-
+use relative_path::RelativePath;
 pub mod attachment;
 pub mod org;
+use log::{error, debug};
 const MAX_RECURSION: usize = 100;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,13 +41,23 @@ pub struct Config {
 impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut data = String::new();
-        let mut file = File::open(&path).context(format!(
-            "Failed to open config file {}",
-            path.as_ref().display()
-        ))?;
+        let mut file = File::open(&path)
+            .context(format!(
+                "Failed to open config file {}",
+                path.as_ref().display()
+            ))
+            .map_err(|e| {
+                error!("{}", e);
+                e
+            })?;
         file.read_to_string(&mut data)
             .context("Failed to read configuration")?;
-        let cfg: Config = toml::from_str(&data).context("Malformed configuration")?;
+        let cfg: Config = toml::from_str(&data)
+            .context("Malformed configuration")
+            .map_err(|e| {
+                error!("{}", e);
+                e
+            })?;
         Ok(cfg)
     }
 }
@@ -82,7 +93,7 @@ pub struct Project {
 /// A builder knows how to process a project
 /// We have one builder for each PublishAction
 pub trait Builder<T> {
-    fn from_project(project: &Project) -> Result<T>;
+    fn from_project<P: AsRef<Path>>(project: &Project, root: P) -> Result<T>;
     fn build(&self) -> Result<()>;
 }
 
@@ -115,7 +126,8 @@ pub(crate) struct DirSettings {
 }
 
 impl DirSettings {
-    pub(crate) fn try_from_project(project: &crate::Project) -> Result<DirSettings> {
+    pub(crate) fn new_from_project<P: AsRef<Path>>(project: &crate::Project, root: P) -> Result<DirSettings> {
+        debug!("Processing {} with path {}", project.name, root.as_ref().display());
         let include = match project.base_extension {
             Some(ref ext) => vec![ext.as_str()],
             None => vec!["*"],
@@ -129,21 +141,47 @@ impl DirSettings {
         )?;
         return Ok(DirSettings {
             files: entries,
-            publish_dir: PathBuf::from_str(&project.publishing_directory)?,
-            source_dir: PathBuf::from_str(&project.base_directory)?
+            publish_dir: make_absolute_path(&project.publishing_directory, &root)?,
+            source_dir: make_absolute_path(&project.base_directory, &root)?
                 .canonicalize()
-                .context("Source directory doesn't exist or is it invalid")?,
+                .context("Source directory doesn't exist or is it invalid")
+                .map_err(|e| {
+                    error!("{}", e);
+                    e
+                })?,
         });
     }
 }
 
-impl TryFrom<&Project> for DirSettings {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &Project) -> std::result::Result<Self, Self::Error> {
-        DirSettings::try_from_project(value)
+pub (crate) fn ensure_directory<P: AsRef<Path>>(path: P) -> Result<PathBuf>{
+    match path.as_ref().canonicalize() {
+        Ok(p) =>  Ok(p),
+        // we assume the directory does not exists and try to mkdir it
+        Err(_) => {
+            std::fs::create_dir_all(&path)
+                .map_err(|e| {
+                    error!("Directory {} does not exist and cannot be created {}", path.as_ref().display(), e);
+                    std::io::Error::last_os_error()
+                })?;
+            Ok(path.as_ref().to_owned())
+        },
     }
 }
+
+fn make_absolute_path<P: AsRef<Path>, B: AsRef<Path>>(path: P, root: B) -> Result<PathBuf> {
+    match RelativePath::from_path(&path) {
+        Ok(p) =>  {
+            Ok(p.to_logical_path(root))
+        },
+        Err(e) =>  match e.kind() {
+            relative_path::FromPathErrorKind::NonRelative => Ok(path.as_ref().into()),
+            relative_path::FromPathErrorKind::NonUtf8 => bail!("{}", e),
+            relative_path::FromPathErrorKind::BadSeparator => bail!("{}", e),
+            _ => todo!(), // shouldn't
+        }
+    }
+}
+
 
 /// Get all the entries in a directory, applying filters defined in the project
 pub(crate) fn get_source_entries<P, S>(
@@ -175,7 +213,11 @@ where
         .context(format!(
             "Error reading {} directory content",
             &path.as_ref().display()
-        ))?
+        ))
+        .map_err(|e| {
+            error!("{}", e);
+            e
+        })?
         .into_iter()
         //The walker will return the directories as entries
         .filter(|p| p.file_type().is_file())
