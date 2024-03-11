@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
-use borg::attachment::AttachmentsHandler;
-use borg::org::PublishHandler;
-use borg::{Builder, Config, Project};
+use borg::attachment::AttachmentsBuilder;
+use borg::org::PublishBuilder;
+use borg::{Builder, Site, Project};
 use log::{error, info};
 use seahorse::{ActionError, ActionResult, App, Command, Context as AppContext};
 use std::env;
@@ -11,13 +11,13 @@ use std::process::exit;
 fn run_project_builder(project: &Project, root: &Path) -> Result<()> {
     info!("Processing project {}", project.name);
     match project.publish_action {
-        borg::PublishAction::ToHtml => PublishHandler::from_project(&project, root)
+        borg::PublishAction::ToHtml => PublishBuilder::from_project(&project, root)
             .context(format!(
                 "Cannot create html publisher from {}",
                 project.name
             ))?
             .build(),
-        borg::PublishAction::Attachment => AttachmentsHandler::from_project(&project, root)
+        borg::PublishAction::Attachment => AttachmentsBuilder::from_project(&project, root)
             .context(format!(
                 "Cannot create attachment handler from {}",
                 project.name
@@ -28,7 +28,6 @@ fn run_project_builder(project: &Project, root: &Path) -> Result<()> {
                 e
             })
             .context("Failed publishing attachments project"),
-        borg::PublishAction::Rss => todo!(),
     }
 }
 
@@ -45,13 +44,13 @@ fn action(ctx: &AppContext) -> ActionResult {
     })?;
     // if we made it here we exist and we have a parent
     let root = config_file_path.parent().unwrap();
-    match Config::from_file(&config_file_path) {
+    match Site::from_file(&config_file_path) {
         Ok(config) => {
-            let result: Result<()> = config
+            let result = config
                 .projects
                 .iter()
                 .map(|p| run_project_builder(p, &root))
-                .collect();
+                .collect::<Result<_>>();
             result.map_err(|e| -> ActionError {
                 ActionError {
                     message: format!("Error running publish {}", e),

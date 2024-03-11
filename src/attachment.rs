@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use crate::{Builder, DirSettings};
 
 #[derive(Debug)]
-pub struct AttachmentsHandler {
+pub struct AttachmentsBuilder {
     dir_settings: DirSettings,
 }
 
@@ -41,7 +41,7 @@ fn copy_creating_dirs<P: AsRef<Path>>(source: P, output_dir: P, dest: P) -> Resu
     Ok(())
 }
 
-impl Builder<AttachmentsHandler> for AttachmentsHandler {
+impl Builder<AttachmentsBuilder> for AttachmentsBuilder {
     fn build(&self) -> Result<()> {
         for entry in self.dir_settings.files.iter() {
             let canonical_entry = entry.path().canonicalize().map_err(|e| {
@@ -52,7 +52,7 @@ impl Builder<AttachmentsHandler> for AttachmentsHandler {
                 );
                 e
             })?;
-            let dest = &canonical_entry
+            let dest = canonical_entry
                 .strip_prefix(&self.dir_settings.source_dir)
                 .map_err(|e| {
                     error!("{}", e);
@@ -64,7 +64,7 @@ impl Builder<AttachmentsHandler> for AttachmentsHandler {
     }
 
     fn from_project<P: AsRef<Path>>(project: &crate::Project, root: P) -> Result<Self> {
-        Ok(AttachmentsHandler {
+        Ok(AttachmentsBuilder {
             dir_settings: DirSettings::new_from_project(project, root)?,
         })
     }

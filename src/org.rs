@@ -1,21 +1,73 @@
-use crate::{DirSettings, ensure_directory};
+use crate::sitemap::{RssGenerator, SitemapGenerator};
+use crate::{ensure_directory, DirSettings};
 
 use super::Builder;
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use log::{error, info};
-use orgize::export::{DefaultHtmlHandler, SyntectHtmlHandler};
+use orgize::export::{DefaultHtmlHandler, HtmlHandler, SyntectHtmlHandler};
 use orgize::Org;
 use std::fs::File;
 use std::path::Path;
 
-/// Handler for the `ToHtml` action
-#[derive(Default, Debug)]
-pub struct PublishHandler {
-    dir_settings: DirSettings,
+#[derive(Default)]
+pub struct CustomHtmlHandler<'a>{
+    html_handler: SyntectHtmlHandler<std::io::Error, DefaultHtmlHandler>,
+    rss_handler : Option<RssGenerator>,
+    sitemap_handler: Option<SitemapGenerator<'a>>
 }
 
+impl <'a> HtmlHandler<Error> for CustomHtmlHandler<'a> {
+    fn start<W: std::io::Write>(
+        &mut self,
+        mut w: W,
+        element: &orgize::Element,
+    ) -> std::result::Result<(), Error> {
+        match element {
+            orgize::Element::Keyword(k) => {
+                match k.key.as_ref() {
+                    "time" | "TIME" => {
+                        write!(& mut w, "<h1>{}</h1>", k.value)?;
+                    },
+                    "date" | "DATE" => {
+                        write!(& mut w, "<span class=\"date\">{}</span>", k.value)?;
+                    }
+                    _ => todo!(),
+                }
+                Ok(())
+            }
+            _ => {
+                self.html_handler.start(w, element)?;
+                Ok(())
+            }
+        }
+    }
 
-impl Builder<PublishHandler> for PublishHandler {
+    fn end<W: std::io::Write>(
+        &mut self,
+        w: W,
+        element: &orgize::Element,
+    ) -> std::result::Result<(), Error> {
+        match element {
+            orgize::Element::Keyword(k) => {
+                Ok(())
+            }
+            _ => {
+                self.html_handler.end(w, element)?;
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Builder for the `ToHtml` action
+#[derive(Default, Debug)]
+pub struct PublishBuilder {
+    dir_settings: DirSettings,
+    rss_generator: RssGenerator,
+    sitemap_generator: SitemapGenerator
+}
+
+impl Builder<PublishBuilder> for PublishBuilder {
     fn build(&self) -> Result<()> {
         ensure_directory(&self.dir_settings.publish_dir)?;
         for f in self.dir_settings.files.iter() {
@@ -30,19 +82,22 @@ impl Builder<PublishHandler> for PublishHandler {
     }
 
     fn from_project<P: AsRef<Path>>(project: &crate::Project, root: P) -> Result<Self> {
-        Ok(PublishHandler {
-            dir_settings: DirSettings::new_from_project(project, root)?
+        Ok(PublishBuilder {
+            dir_settings: DirSettings::new_from_project(project, root)?,
         })
     }
 }
 
-impl PublishHandler {
-    // TODO: This has to work with recursive files too
-    fn export_html(&self, f: &walkdir::DirEntry) -> Result<(), anyhow::Error> {
+impl PublishBuilder {
+    fn export_html(&self, f: &walkdir::DirEntry) -> Result<(), Error> {
         let contents = std::fs::read_to_string(f.path())?;
         let mut output_path = self.dir_settings.publish_dir.join(f.file_name());
         output_path.set_extension("html");
-        info!("Processing file {} into {:?}", f.path().display(), output_path.display());
+        info!(
+            "Processing file {} into {:?}",
+            f.path().display(),
+            output_path.display()
+        );
         let output = File::create(&output_path)
             .map_err(|e| {
                 error!("{}", e);
@@ -56,7 +111,7 @@ impl PublishHandler {
                 error!("{}", e);
                 e
             })?;
-        let mut inner = SyntectHtmlHandler::new(DefaultHtmlHandler);
+        let mut inner = CustomHtmlHandler::default();
         Ok(Org::parse(&contents)
             .write_html_custom(output, &mut inner)
             .context(format!("Failed to process {:?}", f.path().display()))

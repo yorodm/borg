@@ -1,14 +1,14 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use log::{debug, error};
+use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::File,
+    fs::{File, create_dir_all},
     io::Read,
     path::{Path, PathBuf},
 };
 use walkdir::{DirEntry, WalkDir};
-use relative_path::RelativePath;
-use log::{error, debug};
 
 pub mod attachment;
 pub mod org;
@@ -22,8 +22,6 @@ pub enum PublishAction {
     ToHtml,
     #[serde(rename = "attachment")]
     Attachment,
-    #[serde(rename = "rss")]
-    Rss,
 }
 
 impl Default for PublishAction {
@@ -35,11 +33,11 @@ impl Default for PublishAction {
 /// A site config
 /// Basically a list of `Project` definitions
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Config {
+pub struct Site {
     pub projects: Vec<Project>,
 }
 
-impl Config {
+impl Site {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut data = String::new();
         let mut file = File::open(&path)
@@ -53,7 +51,7 @@ impl Config {
             })?;
         file.read_to_string(&mut data)
             .context("Failed to read configuration")?;
-        let cfg: Config = toml::from_str(&data)
+        let cfg: Site = toml::from_str(&data)
             .context("Malformed configuration")
             .map_err(|e| {
                 error!("{}", e);
@@ -69,6 +67,7 @@ impl Config {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Project {
     pub name: String,
+    pub description: Option<String>,
     pub base_directory: String,
     pub base_extension: Option<String>,
     #[serde(default)]
@@ -127,13 +126,24 @@ pub(crate) struct DirSettings {
 }
 
 impl DirSettings {
-    pub(crate) fn new_from_project<P: AsRef<Path>>(project: &crate::Project, root: P) -> Result<DirSettings> {
-        debug!("Processing {} with path {}", project.name, root.as_ref().display());
+    pub(crate) fn new_from_project<P: AsRef<Path>>(
+        project: &crate::Project,
+        root: P,
+    ) -> Result<DirSettings> {
+        debug!(
+            "Processing {} with path {}",
+            project.name,
+            root.as_ref().display()
+        );
         let include = match project.base_extension {
             Some(ref ext) => vec![ext.as_str()],
             None => vec!["*"],
         };
-        let exclude: Vec<&str> = project.exclude.iter().map(|s| s.as_str()).collect();
+        let exclude = project
+            .exclude
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
         let entries = get_source_entries(
             &project.base_directory,
             &include,
@@ -154,36 +164,37 @@ impl DirSettings {
     }
 }
 
-pub (crate) fn ensure_directory<P: AsRef<Path>>(path: P) -> Result<PathBuf>{
+pub(crate) fn ensure_directory<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
     match path.as_ref().canonicalize() {
-        Ok(p) =>  Ok(p),
+        Ok(p) => Ok(p),
         // we assume the directory does not exists and try to mkdir it
         Err(_) => {
-            std::fs::create_dir_all(&path)
+            create_dir_all(&path)
                 .map_err(|e| {
-                    error!("Directory {} does not exist and cannot be created {}", path.as_ref().display(), e);
+                    error!(
+                        "Directory {} does not exist and cannot be created {}",
+                        path.as_ref().display(),
+                        e
+                    );
                     std::io::Error::last_os_error()
                 })
                 .context("Failed creating directory tree")?;
             Ok(path.as_ref().to_owned())
-        },
+        }
     }
 }
 
 fn make_absolute_path<P: AsRef<Path>, B: AsRef<Path>>(path: P, root: B) -> Result<PathBuf> {
     match RelativePath::from_path(&path) {
-        Ok(p) =>  {
-            Ok(p.to_logical_path(root))
-        },
-        Err(e) =>  match e.kind() {
+        Ok(p) => Ok(p.to_logical_path(root)),
+        Err(e) => match e.kind() {
             relative_path::FromPathErrorKind::NonRelative => Ok(path.as_ref().into()),
             relative_path::FromPathErrorKind::NonUtf8 => bail!("{}", e),
             relative_path::FromPathErrorKind::BadSeparator => bail!("{}", e),
             _ => todo!(), // shouldn't
-        }
+        },
     }
 }
-
 
 /// Get all the entries in a directory, applying filters defined in the project
 pub(crate) fn get_source_entries<P, S>(
